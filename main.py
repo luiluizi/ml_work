@@ -1,7 +1,6 @@
 # coding: utf-8
 import torch
 from torch import nn
-from d2l import torch as d2l
 import os
 from tools import  getData
 from net import BiRNN
@@ -60,7 +59,6 @@ if __name__ == "__main__":
 
     lr, num_epochs = 0.001, 20
     loss = nn.CrossEntropyLoss(reduction="none")
-    # d2l.train_ch13(net, train_loader, val_loader, loss, trainer, num_epochs,devices)
 
 
     trainer = Trainer(model=net, device=device, criterion=loss, lr=lr)
