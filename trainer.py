@@ -59,8 +59,6 @@ class Trainer:
             correct += (pred == y).sum().item()
             total += y.size(0)
         print(f'train acc:{correct / total:.4f}')
-            
-        
         return total_loss / len(train_loader)
     
     def evaluate(self, val_loader):

@@ -9,8 +9,29 @@ from trainer import Trainer
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
 import random
+import argparse
 
-gpu_id = 1
+parser = argparse.ArgumentParser()
+parser.add_argument('--gpu_id', type=int, default=0)
+parser.add_argument('--num_epochs', type=int, default=100)
+parser.add_argument('--lr', type=float, default=0.001)
+parser.add_argument('--weight_decay', type=float, default=0)
+parser.add_argument('--batch_size', type=int, default=256)
+parser.add_argument('--embed_size', type=int, default=100)
+parser.add_argument('--num_hiddens', type=int, default=64)
+parser.add_argument('--num_layers', type=int, default=3)
+parser.add_argument('--pseudo_threshold', type=float, default=0.90) # 伪标签置信度
+
+args = parser.parse_args()
+gpu_id = args.gpu_id
+num_epochs = args.num_epochs
+lr = args.lr
+batch_size = args.batch_size
+embed_size = args.embed_size
+num_hiddens = args.num_hiddens
+num_layers = args.num_layers
+pseudo_threshold = args.pseudo_threshold
+
 device = torch.device("cuda:%d" % gpu_id if torch.cuda.is_available() else "cpu")
 
 def predict_sentiment(net, word_to_idx ,sequence):
@@ -45,21 +66,18 @@ def load_glove_embeddings(glove_file, word_to_idx, embedding_dim=100):
     return torch.tensor(embeddings)
 
 if __name__ == "__main__":
-    batch_size = 512
     train_loader, val_loader, no_label_loader, vocab, train_tokenized,idx_to_word,word_to_idx = getData(random_seed=2406332)
 
-    embed_size, num_hiddens, num_layers = 100, 100, 3
     net = BiRNN(len(vocab)+1, embed_size, num_hiddens, num_layers)
 
     net.apply(init_weights)
 
+    # 加载glove_embedding
     glove_embedding = load_glove_embeddings('../data/glove.6B.100d/vec.txt', word_to_idx, 100)
     net.embedding.weight.data.copy_(glove_embedding)
     net.embedding.weight.requires_grad = False
 
-    lr, num_epochs = 0.001, 20
     loss = nn.CrossEntropyLoss(reduction="none")
-
 
     trainer = Trainer(model=net, device=device, criterion=loss, lr=lr)
 
@@ -72,11 +90,10 @@ if __name__ == "__main__":
         # 生成伪标签
         if epoch >= 10:  # 等模型稳定后再使用伪标签
             # trainer.update_lr(lr/2)
-            pseudo_texts, pseudo_labels = trainer.generate_pseudo_labels(no_label_loader)
+            pseudo_texts, pseudo_labels = trainer.generate_pseudo_labels(no_label_loader, threshold=pseudo_threshold)
             if pseudo_texts:
                 pseudo_dataset = TextDataset(pseudo_texts, pseudo_labels)
                 pseudo_loader = DataLoader(pseudo_dataset, batch_size=no_label_loader.batch_size*4, shuffle=True)
-                
                 # 使用伪标签继续训练
                 loss = trainer.train_epoch(train_loader, pseudo_loader)
         
@@ -86,13 +103,11 @@ if __name__ == "__main__":
         val_acc = trainer.evaluate(val_loader)
         print(f"Validation Accuracy: {val_acc:.4f}")
 
-
-
     # @save
     trainFile = open('./newTest.txt', 'r', encoding='utf-8')
     listOfLines = trainFile.readlines()
 
-    with open('submission_{}.csv'.f(gpu_id), "wb") as f:
+    with open('submission.csv', "wb") as f:
         f.write(b"index,label\n")
         for i in range(len(listOfLines)):
             line = listOfLines[i]

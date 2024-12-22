@@ -56,7 +56,7 @@ def clean_text(text):
     ## 再次将文本切分成列表，然后进行词干提取
     text = text.split()
     stemmer = snowballstemmer.stemmer('english')  # 定义词干提取为 snowball，语言为英文
-    stemmed_words = [lemmatizer.lemmatize(word) for word in text]
+    stemmed_words = [lemmatizer.lemmatize(word) for word in text] # 单词还原
     # stemmed_words = [stemmer.stemWord(word) for word in text]  # 遍历每个单词执行词干提取操作
     
     # 重新连成文本
