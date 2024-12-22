@@ -106,7 +106,7 @@ def getData(valid_size = 0.1,batch_size = 64,random_seed = 20373222):
     # 统计词频
     all_tokens = list(chain(*train_tokenized, *test_tokenized, *nolabel_tokenized))
     token_counts = Counter(all_tokens)
-    min_freq = 5
+    min_freq = 1
     vocab = {word for word, count in token_counts.items() if count >= min_freq}
 
     vocab = set(vocab)
