@@ -65,7 +65,7 @@ class Trainer:
         self.model.eval()
         correct = 0
         total = 0
-        
+        total_loss = 0
         with torch.no_grad():
             for x, y in val_loader:
                 x, y = x.to(self.device), y.to(self.device)
@@ -73,8 +73,14 @@ class Trainer:
                 pred = output.argmax(dim=1)
                 correct += (pred == y).sum().item()
                 total += y.size(0)
-                
-        return correct / total
+
+                loss = self.criterion(output, y)
+                loss = loss.sum()
+                total_loss += loss.item()
+        val_acc = correct / total
+        print(f"Validation Accuracy: {val_acc:.4f}")
+        return val_acc
+        return total_loss / len(val_loader)
     
     def generate_pseudo_labels(self, unlabeled_loader, threshold=0.9):
         self.model.eval()

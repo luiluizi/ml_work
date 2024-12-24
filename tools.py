@@ -44,8 +44,8 @@ def encode_samples(tokenized_samples, vocab,word_to_idx):
         for token in sample:  # 遍历某个样本的分词列表
             if token in word_to_idx:  # 如果该单词在词汇表，匹配相对应的数字映射
                 feature.append(word_to_idx[token])
-            # else:
-                # feature.append(0)  # 不存在则为0
+            else:
+                feature.append(0)  # 不存在则为0
 
         features.append(feature)
     return features
@@ -94,6 +94,10 @@ def getData(valid_size = 0.1,batch_size = 64,random_seed = 20373222):
     train_tokenized = []  # 存储训练数据的文本分词
     test_tokenized = []
     nolabel_tokenized = []
+
+    train_data = train_data
+    test_data = test_data
+    nolabel_data = nolabel_data
 
     # 遍历训练数据集文本，执行分词操作
     for review, score in train_data:

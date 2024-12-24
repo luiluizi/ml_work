@@ -12,15 +12,15 @@ import random
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--gpu_id', type=int, default=0)
-parser.add_argument('--num_epochs', type=int, default=100)
+parser.add_argument('--gpu_id', type=int, default=2)
+parser.add_argument('--num_epochs', type=int, default=30)
 parser.add_argument('--lr', type=float, default=0.001)
 parser.add_argument('--weight_decay', type=float, default=0)
 parser.add_argument('--batch_size', type=int, default=256)
 parser.add_argument('--embed_size', type=int, default=100)
-parser.add_argument('--num_hiddens', type=int, default=64)
-parser.add_argument('--num_layers', type=int, default=3)
-parser.add_argument('--pseudo_threshold', type=float, default=0.90) # 伪标签置信度
+parser.add_argument('--num_hiddens', type=int, default=128)
+parser.add_argument('--num_layers', type=int, default=4)
+parser.add_argument('--pseudo_threshold', type=float, default=0.95) # 伪标签置信度
 
 args = parser.parse_args()
 gpu_id = args.gpu_id
@@ -35,7 +35,7 @@ pseudo_threshold = args.pseudo_threshold
 device = torch.device("cuda:%d" % gpu_id if torch.cuda.is_available() else "cpu")
 
 def predict_sentiment(net, word_to_idx ,sequence):
-    sequence = torch.tensor([word_to_idx[i] for i in tokenizer(sequence)], device=device)
+    sequence = torch.tensor([word_to_idx[i] for i in tokenizer(sequence)], device=device, dtype=torch.long)
     label = torch.argmax(net(sequence.reshape(1, -1)), dim=1)
     return label
 
@@ -65,6 +65,18 @@ def load_glove_embeddings(glove_file, word_to_idx, embedding_dim=100):
     # 转换为 PyTorch tensor
     return torch.tensor(embeddings)
 
+def load_model(epoch):
+    model_path = './cache/model_{}.tar'.format(epoch)
+    print(model_path)
+    assert os.path.exists(model_path)
+    checkpoint = torch.load(model_path, map_location='cpu')
+    return checkpoint['model_state_dict']
+
+def save_best_model_with_epoch(best_config, epoch):
+    cache_name = f'./cache/'
+    model_path = cache_name + '/' + 'model_{}.tar'.format(epoch)
+    torch.save(best_config, model_path)
+
 if __name__ == "__main__":
     train_loader, val_loader, no_label_loader, vocab, train_tokenized,idx_to_word,word_to_idx = getData(random_seed=2406332)
 
@@ -81,6 +93,10 @@ if __name__ == "__main__":
 
     trainer = Trainer(model=net, device=device, criterion=loss, lr=lr)
 
+    min_val_loss = 0.0
+    best_config = dict()
+    best_eopch = 0
+
     for epoch in range(num_epochs):
         print(f"Epoch {epoch+1}/{num_epochs}")
         
@@ -88,8 +104,8 @@ if __name__ == "__main__":
         loss = trainer.train_epoch(train_loader)
         
         # 生成伪标签
-        if epoch >= 10:  # 等模型稳定后再使用伪标签
-            # trainer.update_lr(lr/2)
+        if epoch >= 20:  # 等模型稳定后再使用伪标签
+            trainer.update_lr(lr/2)
             pseudo_texts, pseudo_labels = trainer.generate_pseudo_labels(no_label_loader, threshold=pseudo_threshold)
             if pseudo_texts:
                 pseudo_dataset = TextDataset(pseudo_texts, pseudo_labels)
@@ -100,9 +116,12 @@ if __name__ == "__main__":
         print(f"Loss: {loss:.4f}")
         
         # 在验证集上评估（如果有的话）
-        val_acc = trainer.evaluate(val_loader)
-        print(f"Validation Accuracy: {val_acc:.4f}")
-
+        val_loss = trainer.evaluate(val_loader)
+        if val_loss > min_val_loss:
+            best_config['model_state_dict'] = trainer.model.state_dict()
+            save_best_model_with_epoch(best_config, epoch)
+            best_eopch = epoch + 1
+            min_val_loss = val_loss
     # @save
     trainFile = open('./newTest.txt', 'r', encoding='utf-8')
     listOfLines = trainFile.readlines()
@@ -111,8 +130,11 @@ if __name__ == "__main__":
         f.write(b"index,label\n")
         for i in range(len(listOfLines)):
             line = listOfLines[i]
-            if len(line) >0 and line[0] != "":
-                label = predict_sentiment(net,word_to_idx,line.split("+++$+++")[1]).item()
+            sequence = line.split("+++$+++")[1]
+            if len(sequence.strip()) > 0:
+                label = predict_sentiment(net, word_to_idx, line.split("+++$+++")[1]).item()
                 f.write((str(i) + ',' + str( label) + '\n').encode())
+            else:
+                f.write((str(i) + ',' + str(random.choice([0, 1])) + '\n').encode())
     print("finish")
 
