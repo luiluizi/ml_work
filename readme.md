@@ -45,6 +45,8 @@ word2Vec 词向量训练文件，因为某些垃圾包莫名其妙的路径导�
 #net.embedding.weight.requires_grad = False
 ```
 
+4 glove权重下载地址：https://apache-mxnet.s3.cn-north-1.amazonaws.com.cn/gluon/embeddings/glove/glove.twitter.27B.zip
+这里使用的是27B 100d
 
 
 ## 参考资料

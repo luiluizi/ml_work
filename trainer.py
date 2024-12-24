@@ -11,6 +11,7 @@ class Trainer:
         self.device = device
         self.criterion = criterion
         self.optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=0.1)
+        self.temperature = 0
     
     def update_lr(self, new_lr):
         # 更新优化器的学习率
@@ -78,15 +79,30 @@ class Trainer:
                 loss = loss.sum()
                 total_loss += loss.item()
         val_acc = correct / total
-        print(f"Validation Accuracy: {val_acc:.4f}")
+        print(f"Validation Accuracy: {val_acc:.4f}", end=' ')
+        print(f"Validation loss: {total_loss / len(val_loader):.4f}")
         return val_acc
         return total_loss / len(val_loader)
+
+    def test(self, test_loader, output_file):
+        self.model.eval()
+        with torch.no_grad():
+            with open(output_file, 'w') as f:
+                f.write("id,label\n")
+                for i, x in enumerate(test_loader):
+                    x = x.to(self.device)
+                    output = self.model(x)
+                    pred = output.argmax(dim=1)
+                    for j in range(pred.size(0)):
+                        f.write(f"{i * test_loader.batch_size + j},{pred[j].item()}\n")
+        print(f"Results saved to {output_file}")
     
-    def generate_pseudo_labels(self, unlabeled_loader, threshold=0.9):
+    def generate_pseudo_labels(self, unlabeled_loader, max_samples_per_class, threshold=0.9):
         self.model.eval()
         pseudo_texts = []
         pseudo_labels = []
-        
+        class_counts = {0: 0, 1: 0} 
+
         with torch.no_grad():
             for x in tqdm(unlabeled_loader, desc='Gen Pseudo Label', leave=False, ncols=85):
                 x = x.to(self.device)
@@ -97,8 +113,19 @@ class Trainer:
                 # 只选择高置信度的样本
                 confident_idx = max_probs >= threshold
                 if confident_idx.sum() > 0:
+                    confident_samples = x[confident_idx].cpu().numpy()
+                    confident_preds = pred[confident_idx].cpu().numpy()
+
+                    # 针对每个类别控制样本数量
+                    for sample, label in zip(confident_samples, confident_preds):
+                        if class_counts[label] < max_samples_per_class:
+                            pseudo_texts.append(sample)
+                            pseudo_labels.append(label)
+                            class_counts[label] += 1
                     pseudo_texts.extend(x[confident_idx].cpu().numpy())
                     pseudo_labels.extend(pred[confident_idx].cpu().numpy())
+
+                    if all(count >= max_samples_per_class for count in class_counts.values()):
+                        break
                     
         return pseudo_texts, pseudo_labels
-    

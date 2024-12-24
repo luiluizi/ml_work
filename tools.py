@@ -1,4 +1,5 @@
 # coding: utf-8
+import os
 import torch
 import numpy as np
 from torch.utils.data.sampler import SubsetRandomSampler
@@ -19,6 +20,10 @@ class TextDataset(Dataset):
         if self.labels is not None:
             return text_ids, torch.tensor(self.labels[idx])
         return text_ids
+
+def ensure_dir(cache_dir):
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
 
 def readData(path):
     trainFile = open(path ,'r', encoding='utf-8')
@@ -110,7 +115,7 @@ def getData(valid_size = 0.1,batch_size = 64,random_seed = 20373222):
     # 统计词频
     all_tokens = list(chain(*train_tokenized, *test_tokenized, *nolabel_tokenized))
     token_counts = Counter(all_tokens)
-    min_freq = 1
+    min_freq = 5
     vocab = {word for word, count in token_counts.items() if count >= min_freq}
 
     vocab = set(vocab)
@@ -128,10 +133,13 @@ def getData(valid_size = 0.1,batch_size = 64,random_seed = 20373222):
     train_labels = torch.tensor([score for _, score in train_data])
 
     no_label_features = torch.tensor(pad_samples(encode_samples(nolabel_tokenized, vocab, word_to_idx)))
+    test_features = torch.tensor(pad_samples(encode_samples(test_tokenized, vocab, word_to_idx)))
 
     train_set = torch.utils.data.TensorDataset(train_features, train_labels)
 
     no_label_set = TextDataset(no_label_features)
+
+    test_set = TextDataset(test_features)
 
     num_train = len(train_set)
     num_val = np.floor(valid_size * num_train)
@@ -154,10 +162,13 @@ def getData(valid_size = 0.1,batch_size = 64,random_seed = 20373222):
     no_label_loader = torch.utils.data.DataLoader(no_label_set,
                                              batch_size=batch_size*4,
                                              shuffle=True)
+    test_loader = torch.utils.data.DataLoader(test_set,
+                                             batch_size=batch_size,
+                                             shuffle=False)
     print("数据读取结束")
 
     res_tokenized = train_tokenized + test_tokenized + nolabel_tokenized
-    return train_loader,val_loader,no_label_loader,vocab,res_tokenized,idx_to_word,word_to_idx
+    return train_loader,val_loader,no_label_loader, test_loader,vocab,res_tokenized,idx_to_word,word_to_idx
 
 if __name__ == "__main__":
     getData()
